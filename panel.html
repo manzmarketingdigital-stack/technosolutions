@@ -514,9 +514,16 @@ const CATS = [
 const SECCION_PEDIDOS = {id:'garantias', label:'Garantías', icon:'📦'};
 
 function loadDB() { try { return JSON.parse(localStorage.getItem('ts_admin_v2')||'null') || {prods:[],nid:1}; } catch(e) { return {prods:[],nid:1}; } }
-function saveDB() { localStorage.setItem('ts_admin_v2', JSON.stringify(db)); }
+function saveDB() {
+  try {
+    const slim = {...db, prods: db.prods.map(p=>({...p,foto:''}))};
+    localStorage.setItem('ts_admin_v2', JSON.stringify(slim));
+  } catch(e) {
+    try { localStorage.removeItem('ts_admin_v2'); } catch(e2){}
+  }
+}
 
-firebase.initializeApp({
+if (!firebase.apps.length) firebase.initializeApp({
   apiKey: "AIzaSyChrmXpthjPEQYZ3KWTq5FNlQdIztlIDJM",
   authDomain: "technosolutions-bb7c9.firebaseapp.com",
   projectId: "technosolutions-bb7c9",
@@ -1171,7 +1178,7 @@ function toggleMarcaCustom() {
 
 function closeModal() { document.getElementById('overlay').style.display='none'; S.editing=null; photoB64=''; }
 
-function submit() {
+async function submit() {
   const nombre  = document.getElementById('f-nombre').value.trim();
   const cat     = document.getElementById('f-cat').value;
   const precio  = document.getElementById('f-precio').value;
@@ -1199,14 +1206,14 @@ function submit() {
     const i=db.prods.findIndex(p=>p.id===S.editing);
     if(i!==-1) {
       db.prods[i]={...db.prods[i],...prod};
-      guardarProductoFirebase(db.prods[i]); // FIX: pasar objeto completo con id y creadoEn
+      await guardarProductoFirebase(db.prods[i]);
     }
     toast('✓ Producto actualizado');
   } else {
     prod.id=genId();
     prod.creadoEn=new Date().toISOString(); // FIX: asignar fecha de creación
     db.prods.push(prod);
-    guardarProductoFirebase(prod);
+    await guardarProductoFirebase(prod);
     toast('✓ Producto agregado');
   }
   saveDB(); closeModal(); render();
