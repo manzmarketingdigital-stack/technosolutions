@@ -541,8 +541,6 @@ async function cargarProductosFirebase() {
     const eb = document.getElementById('fb-error-banner'); if (eb) eb.remove();
     const st = document.getElementById('firebase-status');
     if (st) { st.style.color='#22c55e'; st.textContent='✓ Firebase ('+db.prods.length+' productos)'; }
-    const st = document.getElementById('firebase-status');
-    if (st) { st.style.color='#22c55e'; st.textContent='✓ Conectado a Firebase ('+db.prods.length+' productos)'; }
   } catch(e) {
     db.prods = [];
     if (!document.getElementById('fb-error-banner')) {
@@ -554,8 +552,6 @@ async function cargarProductosFirebase() {
     }
     const st2 = document.getElementById('firebase-status');
     if (st2) { st2.style.color='#dc2626'; st2.textContent='⚠️ Sin conexión Firebase'; }
-    const st2 = document.getElementById('firebase-status');
-    if (st2) { st2.style.color='#dc2626'; st2.textContent='⚠️ Sin conexión a Firebase'; }
   }
   render();
   const loader = document.getElementById('app-loader');
