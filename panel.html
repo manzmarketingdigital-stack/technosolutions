@@ -1234,7 +1234,7 @@ async function submit() {
     await guardarProductoFirebase(prod);
     toast('✓ Producto agregado');
   }
-  saveDB(); closeModal(); render();
+  closeModal(); render();
 }
 
 function edit(id) { const p=db.prods.find(x=>x.id===id); if(p) openModal(p); }
@@ -1242,7 +1242,7 @@ function edit(id) { const p=db.prods.find(x=>x.id===id); if(p) openModal(p); }
 function del(id) {
   if (S.confirmDel[id]) {
     db.prods=db.prods.filter(p=>p.id!==id);
-    delete S.confirmDel[id]; saveDB();
+    delete S.confirmDel[id];
     eliminarProductoFirebase(id);
     toast('Producto eliminado'); render();
   } else {
@@ -1429,7 +1429,6 @@ async function handleImportFile(input) {
         db.prods.push(prod);
         addLog(`✓ "${nombre}" agregado — ${precioDisplay}`, 'ok');
       }
-      saveDB();
       ok++;
     } catch(e) {
       addLog(`✗ "${nombre}": error al guardar (${e.message})`, 'err');

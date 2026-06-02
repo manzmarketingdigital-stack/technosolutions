@@ -756,7 +756,8 @@ function cerrarLogin() {
 function doLogin() {
   const user = document.getElementById('login-user').value.trim();
   const pass = document.getElementById('login-pass').value;
-  if (user === 'Alejandro' && pass === 'Tecno1122') {
+  const _h = s => s.split('').reduce((a,ch)=>((a<<5)-a)+ch.charCodeAt(0),0)>>>0;
+  if (_h(user) === _h('Alejandro') && _h(pass) === _h('Tecno1122')) {
     cerrarLogin();
     abrirPanel();
   } else {
@@ -924,7 +925,6 @@ async function confirmarPedido() {
   ${pl}
 `;
   });
-  msg += `
   msg += total > 0 ? '\n💰 *Total: $'+fmt(total)+'*' : '\n💰 *Total: A confirmar*';
   msg += `
 🛡️ *Garantía:* 10 días desde hoy`;
@@ -958,7 +958,8 @@ async function guardarPedidoFirebase(pedido) {
     nombre:        pedido.nombre,
     apellido:      pedido.apellido,
     dni:           pedido.dni,
-    total:         pedido.total,
+    total:         pedido.total > 0 ? pedido.total : null,
+    totalTexto:    pedido.total === 0 ? 'A confirmar' : null,
     fecha:         pedido.fecha,
     garantiaVence: pedido.garantiaVence,
     items:         JSON.stringify(pedido.items)
@@ -966,10 +967,25 @@ async function guardarPedidoFirebase(pedido) {
 }
 
 function guardarPedidoLocal(pedido) {
-  const existing = JSON.parse(localStorage.getItem('ts_pedidos') || '[]');
+  // Fallback solo de último recurso — intenta resubir cuando haya conexión
   pedido.id = 'local_' + Date.now();
-  existing.push(pedido);
-  localStorage.setItem('ts_pedidos', JSON.stringify(existing));
+  try {
+    const existing = JSON.parse(localStorage.getItem('ts_pedidos') || '[]');
+    existing.push(pedido);
+    localStorage.setItem('ts_pedidos', JSON.stringify(existing));
+  } catch(e) {}
+  // Reintentar en segundo plano cuando vuelva la conexión
+  const retry = setInterval(async () => {
+    try {
+      await guardarPedidoFirebase(pedido);
+      // Subió OK — quitar del localStorage
+      try {
+        const arr = JSON.parse(localStorage.getItem('ts_pedidos') || '[]').filter(p => p.id !== pedido.id);
+        localStorage.setItem('ts_pedidos', JSON.stringify(arr));
+      } catch(e) {}
+      clearInterval(retry);
+    } catch(e) { /* sigue reintentando */ }
+  }, 30000); // reintenta cada 30 seg
 }
 
 render();
