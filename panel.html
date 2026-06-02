@@ -325,7 +325,7 @@ input[type=file]{display:none}
                 <nav id="sidebar-nav"></nav>
                 <div class="sidebar-footer">
                     <p id="sidebar-total">0 productos</p>
-                    <p style="margin-top:4px;font-size:10px">Datos guardados localmente</p>
+                    <p id="firebase-status" style="margin-top:4px;font-size:10px;color:#22c55e">✓ Conectado a Firebase</p>
                 </div>
             </aside>
             <main>
@@ -539,6 +539,10 @@ async function cargarProductosFirebase() {
     });
     db.prods.sort((a,b)=>(b.creadoEn||'').localeCompare(a.creadoEn||''));
     const eb = document.getElementById('fb-error-banner'); if (eb) eb.remove();
+    const st = document.getElementById('firebase-status');
+    if (st) { st.style.color='#22c55e'; st.textContent='✓ Firebase ('+db.prods.length+' productos)'; }
+    const st = document.getElementById('firebase-status');
+    if (st) { st.style.color='#22c55e'; st.textContent='✓ Conectado a Firebase ('+db.prods.length+' productos)'; }
   } catch(e) {
     db.prods = [];
     if (!document.getElementById('fb-error-banner')) {
@@ -548,6 +552,10 @@ async function cargarProductosFirebase() {
       b.textContent = '⚠️ No se pudo conectar con Firebase. Los datos no están disponibles. Verificá tu conexión y recargá la página.';
       document.body.prepend(b);
     }
+    const st2 = document.getElementById('firebase-status');
+    if (st2) { st2.style.color='#dc2626'; st2.textContent='⚠️ Sin conexión Firebase'; }
+    const st2 = document.getElementById('firebase-status');
+    if (st2) { st2.style.color='#dc2626'; st2.textContent='⚠️ Sin conexión a Firebase'; }
   }
   render();
   const loader = document.getElementById('app-loader');
@@ -619,8 +627,7 @@ async function cargarPedidosFirebase() { // returns promise
     const snap = await dbFirestore.collection("pedidos").orderBy("fecha","desc").get();
     _pedidosCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
   } catch(e) {
-    console.warn('Firebase no disponible, usando local:', e);
-    try { _pedidosCache = JSON.parse(localStorage.getItem('ts_pedidos') || '[]'); } catch(e2) { _pedidosCache = []; }
+    _pedidosCache = [];
   }
   renderPedidos();
 }
