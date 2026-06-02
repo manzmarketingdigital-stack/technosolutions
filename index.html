@@ -405,7 +405,7 @@ footer{background:#fff;border-top:1px solid #e8e8e8;padding:32px;margin-top:0}
   <div class="search-filter-row">
     <div class="search-box">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input type="text" id="search-input" placeholder="Buscar por nombre, marca o modelo..." oninput="S.search=this.value; document.getElementById('search-clear').style.display=this.value?'block':'none'; renderGrid();" autocomplete="off"/>
+      <input type="text" id="search-input" placeholder="Buscar por nombre, marca o modelo..." oninput="S.search=this.value.trim(); document.getElementById('search-clear').style.display=this.value?'block':'none'; renderGrid();" autocomplete="off"/>
       <button class="search-clear" id="search-clear" style="display:none" onclick="clearSearch()">✕</button>
     </div>
     <div class="brand-pills" id="brand-pills"></div>
@@ -562,28 +562,39 @@ const PRODUCTOS_EJEMPLO = [
 ]; // fin ejemplo
 
 async function cargarProductosTienda() {
+  try { localStorage.removeItem('ts_admin_v2'); } catch(e) {}
   try {
     const snap = await dbFirebase.collection('productos').get();
     if (!snap.empty) {
       PRODUCTOS = snap.docs.map(d => {
         const data = d.data();
+        const pv = data.precio;
+        const sv = data.stock;
         return {
           id:     d.id,
           cat:    data.cat    || '',
           marca:  data.marca  || '',
           modelo: data.modelo || '',
           nombre: data.nombre || '',
-          precio: data.precio || 0,
-          desc:   data.detalle || data.desc || '',   // FIX: panel guarda "detalle"
+          precio: (pv !== undefined && pv !== null && pv !== '' && !isNaN(Number(pv))) ? Number(pv) : (pv || ''),
+          desc:   data.detalle || data.desc || '',
           foto:   data.foto   || '',
-          stock:  data.stock  || '',
+          stock:  (sv !== undefined && sv !== null && sv !== '' && !isNaN(Number(sv))) ? Number(sv) : (sv || ''),
         };
       });
     } else {
-      PRODUCTOS = PRODUCTOS_EJEMPLO;
+      PRODUCTOS = [];
     }
+    const eb = document.getElementById('fb-error-banner'); if (eb) eb.remove();
   } catch(e) {
-    PRODUCTOS = PRODUCTOS_EJEMPLO;
+    PRODUCTOS = [];
+    if (!document.getElementById('fb-error-banner')) {
+      const b = document.createElement('div');
+      b.id = 'fb-error-banner';
+      b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#dc2626;color:#fff;text-align:center;padding:12px 16px;font-size:14px;font-weight:700';
+      b.innerHTML = '⚠️ No pudimos cargar los productos. <a href="javascript:location.reload()" style="color:#fff;text-decoration:underline">Recargar</a>';
+      document.body.prepend(b);
+    }
   }
   // FIX: recalcular marcas DESPUÉS de cargar los productos
   marcas.length = 0;
@@ -632,7 +643,7 @@ function renderGrid() {
   let list = PRODUCTOS;
   if (S.cat!=='todos') list = list.filter(p=>p.cat===S.cat);
   if (S.brand) list = list.filter(p=>p.marca===S.brand);
-  if (S.search) { const q=S.search.toLowerCase(); list=list.filter(p=>(p.nombre+p.marca+p.modelo+(p.desc||'')).toLowerCase().includes(q)); }
+  if (S.search) { const q=S.search.toLowerCase().trim(); list=list.filter(p=>((p.nombre||'')+(p.marca||'')+(p.modelo||'')+(p.desc||'')).toLowerCase().includes(q)); }
 
   const catInfo = c => CATS.find(x=>x.id===c);
   const rcEl = document.getElementById('results-count'); if(rcEl) rcEl.innerHTML = `<strong>${list.length}</strong> producto${list.length!==1?'s':''} encontrado${list.length!==1?'s':''}`;
@@ -669,7 +680,7 @@ function renderGrid() {
         <div class="prod-model">Para: ${p.modelo}</div>
         <div class="prod-desc">${p.desc}</div>
         <div class="prod-footer">
-          <div class="prod-price"><span class="sym">$</span>${fmt(p.precio)}</div>
+          <div class="prod-price">${(p.precio!==''&&p.precio!==null&&!isNaN(Number(p.precio)))?"<span class='sym'>$</span>"+fmt(p.precio):String(p.precio||'Consultar')}</div>
           <button class="btn-share" onclick="compartirProducto('${p.id}')" title="Compartir">📤</button>
           <button class="btn-add" onclick="addCart('${p.id}')">+ Agregar</button>
         </div>
@@ -700,11 +711,12 @@ function compartirProducto(id) {
   const p = PRODUCTOS.find(x=>x.id===id);
   if (!p) return;
   const url = window.location.href.split('?')[0];
-  const msg = `👀 Mirá este producto en Techno Solutions:%0A%0A*${encodeURIComponent(p.nombre)}*%0APara: ${encodeURIComponent(p.modelo)}%0APrecio: $${fmt(p.precio)}%0A%0A${encodeURIComponent(url)}`;
+  const precioStr = (!isNaN(Number(p.precio))&&p.precio!==''&&p.precio!==null)?'$'+fmt(p.precio):String(p.precio||'Consultar');
+  const msg = `👀 Mirá este producto en Techno Solutions:%0A%0A*${encodeURIComponent(p.nombre)}*%0APara: ${encodeURIComponent(p.modelo)}%0APrecio: ${precioStr}%0A%0A${encodeURIComponent(url)}`;
   if (navigator.share) {
     navigator.share({
       title: p.nombre,
-      text: `${p.nombre} - Para: ${p.modelo} - Precio: $${fmt(p.precio)}`,
+      text: `${p.nombre} - Para: ${p.modelo} - Precio: ${precioStr}`,
       url: url
     }).catch(() => {
       window.open(`https://wa.me/?text=${msg}`, '_blank');
@@ -803,13 +815,14 @@ function renderCart() {
   let total = 0;
   body.innerHTML = keys.map(id => {
     const p = PRODUCTOS.find(x=>x.id===id); if(!p) return '';
-    const sub = p.precio * S.cart[id]; total += sub;
+    const pn = !isNaN(Number(p.precio)) && p.precio !== '' ? Number(p.precio) : null;
+    const sub = pn !== null ? pn * S.cart[id] : null; if (sub !== null) total += sub;
     return `<div class="cart-item">
       <div class="cart-item-img">${CATS.find(c=>c.id===p.cat)?.icon||'📦'}</div>
       <div class="cart-item-info">
         <div class="cart-item-name">${p.nombre}</div>
         <div class="cart-item-brand">${p.marca} · ${p.modelo}</div>
-        <div class="cart-item-price">$${fmt(sub)}</div>
+        <div class="cart-item-price">${sub !== null ? "$"+fmt(sub) : String(p.precio||"Consultar")}</div>
         <div class="cart-item-qty">
           <button class="qty-btn" onclick="changeQty('${id}',-1)">−</button>
           <span class="qty-num">${S.cart[id]}</span>
@@ -819,7 +832,7 @@ function renderCart() {
       </div>
     </div>`;
   }).join('');
-  document.getElementById('cart-total').textContent = `$${fmt(total)}`;
+  document.getElementById('cart-total').textContent = total > 0 ? '$'+fmt(total) : 'Consultá por precios';
   ftr.style.display='block';
 }
 // toggleCart definida abajo
@@ -878,7 +891,8 @@ async function confirmarPedido() {
   let total = 0;
   const items = keys.map(id => {
     const p = PRODUCTOS.find(x=>x.id===id); if(!p) return null;
-    const sub = p.precio * S.cart[id]; total += sub;
+    const pn2 = !isNaN(Number(p.precio)) && p.precio !== '' ? Number(p.precio) : null;
+    const sub = pn2 !== null ? pn2 * S.cart[id] : null; if (sub !== null) total += sub;
     return { id:p.id, nombre:p.nombre, marca:p.marca, modelo:p.modelo, precio:p.precio, cantidad:S.cart[id], subtotal:sub };
   }).filter(Boolean);
 
@@ -905,12 +919,13 @@ async function confirmarPedido() {
 
 `;
   items.forEach(i => {
+    const pl = i.subtotal !== null ? i.cantidad+' × $'+fmt(i.precio)+' = $'+fmt(i.subtotal) : i.cantidad+' × '+String(i.precio);
     msg += `▸ ${i.nombre} (${i.marca} ${i.modelo})
-  ${i.cantidad} × $${fmt(i.precio)} = $${fmt(i.subtotal)}
+  ${pl}
 `;
   });
   msg += `
-💰 *Total: $${fmt(total)}*`;
+  msg += total > 0 ? '\n💰 *Total: $'+fmt(total)+'*' : '\n💰 *Total: A confirmar*';
   msg += `
 🛡️ *Garantía:* 10 días desde hoy`;
   msg += `

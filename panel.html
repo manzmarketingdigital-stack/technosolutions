@@ -513,15 +513,8 @@ const CATS = [
 ];
 const SECCION_PEDIDOS = {id:'garantias', label:'Garantías', icon:'📦'};
 
-function loadDB() { try { return JSON.parse(localStorage.getItem('ts_admin_v2')||'null') || {prods:[],nid:1}; } catch(e) { return {prods:[],nid:1}; } }
-function saveDB() {
-  try {
-    const slim = {...db, prods: db.prods.map(p=>({...p,foto:''}))};
-    localStorage.setItem('ts_admin_v2', JSON.stringify(slim));
-  } catch(e) {
-    try { localStorage.removeItem('ts_admin_v2'); } catch(e2){}
-  }
-}
+function loadDB() { return {prods:[], nid:1}; }
+function saveDB() { try { localStorage.removeItem('ts_admin_v2'); } catch(e) {} }
 
 if (!firebase.apps.length) firebase.initializeApp({
   apiKey: "AIzaSyChrmXpthjPEQYZ3KWTq5FNlQdIztlIDJM",
@@ -536,27 +529,52 @@ const dbFirestore = dbFS;
 let db = {prods:[], nid:1};
 
 async function cargarProductosFirebase() {
+  try { localStorage.removeItem('ts_admin_v2'); } catch(e) {}
   try {
     const snap = await dbFS.collection('productos').get();
-    db.prods = snap.docs.map(d => ({id:d.id,...d.data()}));
+    db.prods = snap.docs.map(d => {
+      const data = d.data();
+      const p = (v) => (v !== undefined && v !== null && v !== '' && !isNaN(Number(String(v).replace(/\./g,'').replace(/,/g,'.')))) ? Number(String(v).replace(/\./g,'').replace(/,/g,'.')) : v || '';
+      return { id: d.id, ...data, precio: p(data.precio), stock: (!isNaN(Number(data.stock)) && data.stock !== '' && data.stock !== undefined) ? Number(data.stock) : (data.stock || '') };
+    });
     db.prods.sort((a,b)=>(b.creadoEn||'').localeCompare(a.creadoEn||''));
-  } catch(e) { db = loadDB(); }
+    const eb = document.getElementById('fb-error-banner'); if (eb) eb.remove();
+  } catch(e) {
+    db.prods = [];
+    if (!document.getElementById('fb-error-banner')) {
+      const b = document.createElement('div');
+      b.id = 'fb-error-banner';
+      b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#dc2626;color:#fff;text-align:center;padding:12px 16px;font-size:14px;font-weight:700';
+      b.textContent = '⚠️ No se pudo conectar con Firebase. Los datos no están disponibles. Verificá tu conexión y recargá la página.';
+      document.body.prepend(b);
+    }
+  }
   render();
   const loader = document.getElementById('app-loader');
   if (loader) { loader.classList.add('hide'); setTimeout(()=>loader.remove(), 350); }
 }
 async function guardarProductoFirebase(p) {
   try {
+    const parsePrecio = (v) => {
+      const s = String(v || '').trim().replace(/\s/g, '');
+      if (s === '') return '';
+      if (s.includes(',') && s.includes('.')) return Number(s.replace(/\./g,'').replace(',','.'));
+      if (s.includes(',') && !s.includes('.')) return Number(s.replace(',','.'));
+      if (s.includes('.')) { const pts = s.split('.'); if (pts[pts.length-1].length > 2) return Number(s.replace(/\./g,'')); return Number(s); }
+      return isNaN(Number(s)) ? s : Number(s);
+    };
+    const precioFinal = (p.precio !== undefined && p.precio !== null && p.precio !== '') ? parsePrecio(p.precio) : '';
+    const stockFinal  = (p.stock !== undefined && p.stock !== '' && !isNaN(Number(p.stock))) ? Number(p.stock) : (p.stock || '');
     const payload = {
-      nombre:    p.nombre   || '',
-      cat:       p.cat      || '',
-      marca:     p.marca    || '',
-      modelo:    p.modelo   || '',
-      precio:    p.precio !== undefined && p.precio !== null ? p.precio : '',
-      stock:     p.stock    || '',
-      detalle:   p.detalle  || '',
-      foto:      p.foto     || '',
-      creadoEn:  p.creadoEn || new Date().toISOString(),
+      nombre:   p.nombre   || '',
+      cat:      p.cat      || '',
+      marca:    p.marca    || '',
+      modelo:   p.modelo   || '',
+      precio:   precioFinal,
+      stock:    stockFinal,
+      detalle:  p.detalle  || '',
+      foto:     p.foto     || '',
+      creadoEn: p.creadoEn || new Date().toISOString(),
     };
     await dbFS.collection('productos').doc(p.id).set(payload);
   } catch(e) { console.warn('Error guardando en Firebase:', e); }
@@ -965,8 +983,8 @@ function renderPageContent() {
   let list = db.prods;
   if (S.cat!=='todos') list = list.filter(p=>p.cat===S.cat);
   if (S.marca) list = list.filter(p=>p.marca===S.marca);
-  const q = S.search.toLowerCase();
-  const filtered = q ? list.filter(p=>(p.nombre+p.marca+p.modelo+p.detalle).toLowerCase().includes(q)) : list;
+  const q = S.search.toLowerCase().trim();
+  const filtered = q ? list.filter(p=>((p.nombre||'')+(p.marca||'')+(p.modelo||'')+(p.detalle||'')).toLowerCase().includes(q)) : list;
   
   const sec = CATS.find(c=>c.id===S.cat);
   const scEl = document.querySelector('.search-count');
@@ -984,8 +1002,8 @@ function renderPage() {
   let list = db.prods;
   if (S.cat!=='todos') list = list.filter(p=>p.cat===S.cat);
   if (S.marca) list = list.filter(p=>p.marca===S.marca);
-  const q = S.search.toLowerCase();
-  const filtered = q ? list.filter(p=>(p.nombre+p.marca+p.modelo+p.detalle).toLowerCase().includes(q)) : list;
+  const q = S.search.toLowerCase().trim();
+  const filtered = q ? list.filter(p=>((p.nombre||'')+(p.marca||'')+(p.modelo||'')+(p.detalle||'')).toLowerCase().includes(q)) : list;
 
   const total = db.prods.length;
   const conFoto = db.prods.filter(p=>p.foto).length;
@@ -1017,7 +1035,7 @@ function renderPage() {
     <div class="search-row">
       <div class="search-box">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        <input type="text" placeholder="Buscar por nombre, marca o modelo..." value="${S.search}" oninput="S.search=this.value;renderPageContent()"/>
+        <input type="text" placeholder="Buscar por nombre, marca o modelo..." value="${S.search}" oninput="S.search=this.value.trim();renderPageContent()"/>
         ${S.search?`<button class="sc" onclick="S.search='';renderPage()">✕</button>`:''}
       </div>
       <span class="search-count" style="font-size:13px;color:#aaa;font-weight:600;white-space:nowrap"><span>${filtered.length}</span> / ${list.length}</span>
