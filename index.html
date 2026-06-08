@@ -612,11 +612,14 @@ let _pendingCheckout = false; // true si el usuario abrió login desde "Finaliza
 authFirebase.onAuthStateChanged(user => {
   currentUser = user;
   renderAuthHeader();
-  // Si venía del checkout, continuar
-  if (_pendingCheckout && user) {
-    _pendingCheckout = false;
-    cerrarModalGoogle();
-    setTimeout(() => mostrarFormulario(true), 200);
+  if (user) {
+    if (_pendingCheckout) {
+      _pendingCheckout = false;
+      cerrarModalGoogle();
+      setTimeout(() => mostrarFormulario(true), 200);
+    } else {
+      cerrarModalGoogle();
+    }
   }
 });
 
