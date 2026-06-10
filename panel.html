@@ -469,15 +469,15 @@ input[type=file]{display:none}
               <div style="background:#f0f5ff;border-radius:10px;padding:12px 14px;font-size:12px;color:#444;line-height:1.7;margin-bottom:4px">
                 <strong>Columnas requeridas:</strong> nombre, cat, marca, modelo, precio<br>
                 <strong>Columnas opcionales:</strong> stock, detalle<br>
-                <strong>Categorías válidas:</strong> modulos · pantallas · baterias · herramientas
+                <strong>Categorías válidas:</strong> modulos (Piezas Chicas) · pantallas · baterias · herramientas
               </div>
 
               <div class="import-drop-zone" id="import-drop-zone" onclick="document.getElementById('import-file-input').click()">
                 <div class="dz-icon">📂</div>
-                <h3>Arrastrá tu archivo CSV acá</h3>
-                <p>o hacé clic para seleccionarlo · Solo archivos .csv</p>
+                <h3>Arrastrá tu archivo acá</h3>
+                <p>o hacé clic para seleccionarlo · .xlsx o .csv</p>
               </div>
-              <input type="file" id="import-file-input" accept=".csv,text/csv" style="display:none" onchange="handleImportFile(this)">
+              <input type="file" id="import-file-input" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none" onchange="handleImportFile(this)">
 
               <div class="import-progress-wrap" id="import-progress-wrap" style="display:none">
                 <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;color:#888;margin-bottom:5px">
@@ -499,6 +499,8 @@ input[type=file]{display:none}
         <!-- Firebase compat -->
         <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
         <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+        <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
         <script>
 // ── LOGO
 const LOGO_B64 = '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';
@@ -526,6 +528,7 @@ if (!firebase.apps.length) firebase.initializeApp({
 });
 const dbFS = firebase.firestore();
 const dbFirestore = dbFS;
+const storage = firebase.storage();
 let db = {prods:[], nid:1};
 
 async function cargarProductosFirebase() {
@@ -583,11 +586,17 @@ async function guardarProductoFirebase(p) {
     await dbFS.collection('productos').doc(p.id).set(payload);
   } catch(e) { console.warn('Error guardando en Firebase:', e); }
 }
-async function eliminarProductoFirebase(id) {
+async function eliminarProductoFirebase(id, fotoURL) {
   try { await dbFS.collection('productos').doc(id).delete(); } catch(e){}
+  // Si la foto es de Storage (no base64), borrarla
+  if (fotoURL && fotoURL.startsWith('https://firebasestorage')) {
+    try { await storage.refFromURL(fotoURL).delete(); } catch(e){}
+  }
 }
 let S = { cat:'todos', search:'', marca:'', editing:null, confirmDel:{} };
-let photoB64 = '';
+let photoB64 = '';      // base64 temporal mientras se previsualiza (se limpia tras subir)
+let photoURL = '';      // URL final de Storage (o URL existente al editar)
+let photoFile = null;   // archivo original para subir a Storage
 
 const fmt = n => Number(n).toLocaleString('es-AR');
 const genId = () => 'p' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
@@ -1100,7 +1109,9 @@ function setSection(id) {
 
 function openModal(prod=null) {
   S.editing = prod?.id || null;
-  photoB64 = prod?.foto || '';
+  photoB64 = '';
+  photoFile = null;
+  photoURL = prod?.foto || '';  // URL existente si editamos, vacío si es nuevo
   document.getElementById('modal-title').textContent = prod ? 'Editar Producto' : 'Nuevo Producto';
   document.getElementById('btn-submit').textContent = prod ? '✓ Guardar Cambios' : '+ Agregar';
   document.getElementById('f-nombre').value  = prod?.nombre  || '';
@@ -1134,7 +1145,8 @@ function updatePhotoUI() {
   const prev=document.getElementById('photo-preview');
   const plac=document.getElementById('photo-placeholder');
   const chng=document.getElementById('photo-change');
-  if (photoB64) { prev.src=photoB64; prev.classList.add('show'); plac.style.display='none'; chng.classList.add('show'); }
+  const src = photoB64 || photoURL; // priorizar base64 del preview temporal, si no la URL existente
+  if (src) { prev.src=src; prev.classList.add('show'); plac.style.display='none'; chng.classList.add('show'); }
   else { prev.src=''; prev.classList.remove('show'); plac.style.display='flex'; chng.classList.remove('show'); }
 }
 
@@ -1160,17 +1172,31 @@ function comprimirImagen(base64, size=800, quality=0.82) {
   });
 }
 
-function onFile(e) {
+async function subirImagenStorage(file, prodId) {
+  // Comprime la imagen antes de subir
+  const b64 = await new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = ev => res(ev.target.result);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+  const compressed = await comprimirImagen(b64);
+  // Convertir base64 a Blob
+  const arr = compressed.split(','), mime = arr[0].match(/:(.*?);/)[1];
+  const bstr = atob(arr[1]);
+  let n = bstr.length, u8 = new Uint8Array(n);
+  while(n--) u8[n] = bstr.charCodeAt(n);
+  const blob = new Blob([u8], {type: mime});
+  // Subir a Storage
+  const ref = storage.ref(`productos/${prodId}.jpg`);
+  await ref.put(blob);
+  return await ref.getDownloadURL();
+}
   const file=e.target.files[0]; if(!file) return;
   if (file.size>10*1024*1024) { toast('La foto es muy grande. Máx 10MB'); return; }
+  photoFile = file; // guardamos el archivo para subir al guardar
   const r=new FileReader();
-  r.onload=ev=>{
-    comprimirImagen(ev.target.result).then(compressed => {
-      photoB64 = compressed;
-      updatePhotoUI();
-      toast('✓ Foto cargada');
-    });
-  };
+  r.onload=ev=>{ photoB64 = ev.target.result; updatePhotoUI(); toast('✓ Foto lista'); };
   r.readAsDataURL(file); e.target.value='';
 }
 
@@ -1222,7 +1248,20 @@ async function submit() {
   if(!ok) return;
 
   const precioVal = precio.trim();
-  const prod = {nombre,cat,marca,modelo,precio:precioVal,stock:stock||'',detalle,foto:photoB64};
+  const prodId = S.editing || genId();
+
+  // Si hay un archivo nuevo, subirlo a Storage y obtener la URL
+  let fotoFinal = photoURL; // URL existente o vacío
+  if (photoFile) {
+    toast('Subiendo imagen...');
+    try {
+      fotoFinal = await subirImagenStorage(photoFile, prodId);
+    } catch(e) {
+      toast('⚠️ Error al subir la imagen'); return;
+    }
+  }
+
+  const prod = {nombre,cat,marca,modelo,precio:precioVal,stock:stock||'',detalle,foto:fotoFinal};
   if (S.editing) {
     const i=db.prods.findIndex(p=>p.id===S.editing);
     if(i!==-1) {
@@ -1231,8 +1270,8 @@ async function submit() {
     }
     toast('✓ Producto actualizado');
   } else {
-    prod.id=genId();
-    prod.creadoEn=new Date().toISOString(); // FIX: asignar fecha de creación
+    prod.id=prodId;
+    prod.creadoEn=new Date().toISOString();
     db.prods.push(prod);
     await guardarProductoFirebase(prod);
     toast('✓ Producto agregado');
@@ -1244,9 +1283,10 @@ function edit(id) { const p=db.prods.find(x=>x.id===id); if(p) openModal(p); }
 
 function del(id) {
   if (S.confirmDel[id]) {
+    const prod = db.prods.find(p=>p.id===id);
     db.prods=db.prods.filter(p=>p.id!==id);
     delete S.confirmDel[id];
-    eliminarProductoFirebase(id);
+    eliminarProductoFirebase(id, prod?.foto);
     toast('Producto eliminado'); render();
   } else {
     S.confirmDel[id]=true; renderPage();
@@ -1273,10 +1313,30 @@ function exportData() {
 let _importing = false;
 
 function descargarPlantillaCSV() {
-  const csv = 'nombre,cat,marca,modelo,precio,stock,detalle';
-  const blob = new Blob(['\uFEFF' + csv], {type:'text/csv;charset=utf-8'});
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-  a.download = 'plantilla_productos_technosolutions.csv'; a.click();
+  const wb = XLSX.utils.book_new();
+  const data = [
+    // Fila 1: nota
+    ["⚠ Valores válidos para 'cat': modulos (Piezas Chicas) | pantallas | baterias | herramientas   |   No borres la fila 2. Completá desde la fila 3.", "", "", "", "", "", ""],
+    // Fila 2: headers (nombres exactos que usa el panel)
+    ["nombre", "cat", "marca", "modelo", "precio", "stock", "detalle"],
+    // Fila 3: ejemplo
+    ["Módulo pantalla completo", "modulos", "Samsung", "Galaxy A54", "28000", "5", "Display OLED con marco. Incluye adhesivo."],
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(data);
+
+  // Ancho de columnas
+  ws['!cols'] = [
+    {wch:40}, {wch:15}, {wch:15}, {wch:25}, {wch:12}, {wch:10}, {wch:50}
+  ];
+
+  // Merge fila de nota en toda la fila
+  ws['!merges'] = [{ s:{r:0,c:0}, e:{r:0,c:6} }];
+
+  // Congelar desde fila 3
+  ws['!freeze'] = { xSplit: 0, ySplit: 2 };
+
+  XLSX.utils.book_append_sheet(wb, ws, "Productos");
+  XLSX.writeFile(wb, "plantilla_productos_technosolutions.xlsx");
   toast('✓ Plantilla descargada');
 }
 
@@ -1347,15 +1407,42 @@ function addLog(msg, type='info') {
 async function handleImportFile(input) {
   const file = input.files[0];
   if (!file) return;
-  if (!file.name.toLowerCase().endsWith('.csv')) { toast('⚠ Solo se aceptan archivos .csv'); return; }
+  const isXlsx = file.name.toLowerCase().endsWith('.xlsx');
+  const isCsv  = file.name.toLowerCase().endsWith('.csv');
+  if (!isXlsx && !isCsv) { toast('⚠ Solo se aceptan archivos .xlsx o .csv'); return; }
 
   document.getElementById('import-drop-zone').style.display = 'none';
   document.getElementById('import-progress-wrap').style.display = 'block';
   document.getElementById('import-log').innerHTML = '';
   document.getElementById('import-summary').className = 'import-summary';
 
-  const text = await file.text();
-  const { headers, rows } = parseCSV(text);
+  let headers, rows;
+
+  if (isXlsx) {
+    // Leer xlsx con SheetJS
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, {type:'array'});
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+    // Encontrar la fila de headers (la que tenga "nombre" como primera celda)
+    const headerRowIdx = data.findIndex(r => String(r[0]).toLowerCase().trim() === 'nombre');
+    if (headerRowIdx === -1) {
+      addLog('✗ No se encontró la fila de encabezados. Usá la plantilla oficial.', 'err'); return;
+    }
+    headers = data[headerRowIdx].map(h => String(h).toLowerCase().trim());
+    // Las filas de datos son las siguientes, saltando la de ejemplo (que tiene texto en itálica no detectable, así que la incluimos normalmente)
+    rows = data.slice(headerRowIdx + 1)
+      .filter(r => r.some(c => String(c).trim() !== ''))
+      .map(r => {
+        const obj = {};
+        headers.forEach((h, i) => { obj[h] = r[i] !== undefined ? String(r[i]).trim() : ''; });
+        return obj;
+      });
+  } else {
+    const text = await file.text();
+    ({ headers, rows } = parseCSV(text));
+  }
+
   const required = ['nombre', 'cat', 'marca', 'modelo', 'precio'];
   const missing = required.filter(r => !headers.includes(r));
   if (missing.length) {
@@ -1456,7 +1543,6 @@ async function handleImportFile(input) {
 }
 
 // Cargar al iniciar
-cargarPedidosFirebase().then(() => { renderSidebar(); });
 cargarProductosFirebase();
         </script>
     </body>

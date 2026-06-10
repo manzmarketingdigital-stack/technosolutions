@@ -470,7 +470,7 @@ footer{background:#fff;border-top:1px solid #e8e8e8;padding:32px;margin-top:0}
   <div class="search-filter-row">
     <div class="search-box">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input type="text" id="search-input" placeholder="Buscar por nombre, marca o modelo..." oninput="S.search=this.value.trim(); document.getElementById('search-clear').style.display=this.value?'block':'none'; renderGrid();" autocomplete="off"/>
+      <input type="search" id="search-input" name="product-search" placeholder="Buscar por nombre, marca o modelo..." oninput="S.search=this.value.trim(); document.getElementById('search-clear').style.display=this.value?'block':'none'; renderGrid();" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
       <button class="search-clear" id="search-clear" style="display:none" onclick="clearSearch()">✕</button>
     </div>
     <div class="brand-pills" id="brand-pills"></div>
@@ -714,6 +714,9 @@ const CATS = [
 
 // ── PRODUCTOS
 let PRODUCTOS = []; // se llena desde Firebase
+let _lastDoc = null;       // cursor para paginación Firestore
+let _hayMasFirestore = true; // si quedan más docs en Firestore
+const PAGE_FIREBASE = 24;  // cuántos traer por vez
 const PRODUCTOS_EJEMPLO = [
   {id:'m1',cat:'modulos',   marca:'Samsung', modelo:'Galaxy A54',   nombre:'Módulo pantalla completo', precio:28000, desc:'Display OLED con marco. Incluye adhesivo.'},
   {id:'m2',cat:'modulos',   marca:'Samsung', modelo:'Galaxy A34',   nombre:'Módulo pantalla completo', precio:24000, desc:'Pantalla AMOLED original con touch integrado.'},
@@ -735,33 +738,38 @@ const PRODUCTOS_EJEMPLO = [
   {id:'h4',cat:'herramientas',marca:'General',modelo:'Profesional', nombre:'Cautín punta fina 60W',    precio:8500, desc:'Control de temperatura digital.'},
 ]; // fin ejemplo
 
+function _mapDoc(d) {
+  const data = d.data();
+  const pv = data.precio;
+  const sv = data.stock;
+  return {
+    id:     d.id,
+    cat:    data.cat    || '',
+    marca:  data.marca  || '',
+    modelo: data.modelo || '',
+    nombre: data.nombre || '',
+    precio: (pv !== undefined && pv !== null && pv !== '' && !isNaN(Number(pv))) ? Number(pv) : (pv || ''),
+    desc:   data.detalle || data.desc || '',
+    foto:   data.foto   || '',
+    stock:  (sv !== undefined && sv !== null && sv !== '' && !isNaN(Number(sv))) ? Number(sv) : (sv || ''),
+  };
+}
+
 async function cargarProductosTienda() {
+  // Carga inicial: trae los primeros PAGE_FIREBASE productos
   try { localStorage.removeItem('ts_admin_v2'); } catch(e) {}
   try {
-    const snap = await dbFirebase.collection('productos').get();
-    if (!snap.empty) {
-      PRODUCTOS = snap.docs.map(d => {
-        const data = d.data();
-        const pv = data.precio;
-        const sv = data.stock;
-        return {
-          id:     d.id,
-          cat:    data.cat    || '',
-          marca:  data.marca  || '',
-          modelo: data.modelo || '',
-          nombre: data.nombre || '',
-          precio: (pv !== undefined && pv !== null && pv !== '' && !isNaN(Number(pv))) ? Number(pv) : (pv || ''),
-          desc:   data.detalle || data.desc || '',
-          foto:   data.foto   || '',
-          stock:  (sv !== undefined && sv !== null && sv !== '' && !isNaN(Number(sv))) ? Number(sv) : (sv || ''),
-        };
-      });
-    } else {
-      PRODUCTOS = [];
-    }
+    const snap = await dbFirebase.collection('productos')
+      .orderBy('creadoEn', 'desc')
+      .limit(PAGE_FIREBASE)
+      .get();
+    PRODUCTOS = snap.docs.map(_mapDoc);
+    _lastDoc = snap.docs.length ? snap.docs[snap.docs.length - 1] : null;
+    _hayMasFirestore = snap.docs.length === PAGE_FIREBASE;
     const eb = document.getElementById('fb-error-banner'); if (eb) eb.remove();
   } catch(e) {
     PRODUCTOS = [];
+    _hayMasFirestore = false;
     if (!document.getElementById('fb-error-banner')) {
       const b = document.createElement('div');
       b.id = 'fb-error-banner';
@@ -770,13 +778,34 @@ async function cargarProductosTienda() {
       document.body.prepend(b);
     }
   }
-  // FIX: recalcular marcas DESPUÉS de cargar los productos
   marcas.length = 0;
   [...new Set(PRODUCTOS.map(p=>p.marca).filter(m=>m&&m!=='General'))].forEach(m=>marcas.push(m));
   render();
-  // loader ya se quita en finally
   const loaderOld = document.getElementById('app-loader');
   if (loaderOld) { loaderOld.classList.add('hide'); setTimeout(()=>loaderOld.remove(), 350); }
+}
+
+async function cargarMasProductos() {
+  // Carga el siguiente lote desde Firestore usando el cursor _lastDoc
+  if (!_hayMasFirestore || !_lastDoc) return;
+  const btnMas = document.getElementById('btn-cargar-mas');
+  if (btnMas) { btnMas.textContent = 'Cargando...'; btnMas.disabled = true; }
+  try {
+    const snap = await dbFirebase.collection('productos')
+      .orderBy('creadoEn', 'desc')
+      .startAfter(_lastDoc)
+      .limit(PAGE_FIREBASE)
+      .get();
+    const nuevos = snap.docs.map(_mapDoc);
+    PRODUCTOS = PRODUCTOS.concat(nuevos);
+    _lastDoc = snap.docs.length ? snap.docs[snap.docs.length - 1] : _lastDoc;
+    _hayMasFirestore = snap.docs.length === PAGE_FIREBASE;
+    // Actualizar marcas con los nuevos
+    [...new Set(nuevos.map(p=>p.marca).filter(m=>m&&m!=='General'))].forEach(m=>{ if(!marcas.includes(m)) marcas.push(m); });
+  } catch(e) {
+    console.warn('Error cargando más productos:', e);
+  }
+  render();
 }
 
 let S = { cat:'todos', brand:'', search:'', cart:{} };
@@ -821,13 +850,6 @@ function renderGrid() {
 
   const catInfo = c => CATS.find(x=>x.id===c);
   const rcEl = document.getElementById('results-count'); if(rcEl) rcEl.innerHTML = `<strong>${list.length}</strong> producto${list.length!==1?'s':''} encontrado${list.length!==1?'s':''}`;
-  
-  // Limitar a 24 productos por página
-  const PAGE_SIZE = 24;
-  if (!S.page) S.page = 0;
-  const paginated = list.slice(0, PAGE_SIZE * (S.page + 1));
-  const hayMas = list.length > paginated.length;
-
 
   if (!list.length) {
     const pgEl = document.getElementById('products-grid'); if(!pgEl) return; pgEl.innerHTML = `<div class="empty-state">
@@ -835,11 +857,13 @@ function renderGrid() {
       <h3>Sin resultados</h3>
       <p>No encontramos productos para tu búsqueda.<br/>Consultanos por WhatsApp.</p>
     </div>`;
+    const loadMoreEl = document.getElementById('load-more-wrap');
+    if (loadMoreEl) loadMoreEl.innerHTML = '';
     return;
   }
 
-  const pgEl2 = document.getElementById('products-grid'); if(!pgEl2) return; pgEl2.innerHTML = paginated.map(p => {
-    const ci = catInfo(p.cat) || {icon:'📦',label:'Producto'};
+  const pgEl2 = document.getElementById('products-grid'); if(!pgEl2) return; pgEl2.innerHTML = list.map(p => {
+    const ci = catInfo(p.cat) || {icon:'📦',label:'Producto'};\
     const imgHTML = p.foto
       ? `<img class="prod-img loaded" src="${p.foto}" alt="${p.nombre}" loading="lazy">`
       : `<div class="prod-img-placeholder"><div class="icon">${ci.icon}</div><div class="txt">SIN FOTO AÚN</div></div>`;
@@ -861,13 +885,14 @@ function renderGrid() {
       </div>
     </div>`;
   }).join('');
-  
-  // Botón "Cargar más"
+
+  // Botón "Cargar más" — solo aparece si hay más en Firestore y no hay filtros activos
   const loadMoreEl = document.getElementById('load-more-wrap');
   if (loadMoreEl) {
-    if (hayMas) {
-      loadMoreEl.innerHTML = `<button onclick="S.page=(S.page||0)+1;renderGrid()" style="padding:12px 32px;border-radius:10px;background:#111;color:#fff;font-size:14px;font-weight:700;border:none;cursor:pointer;display:block;margin:24px auto 0">
-        Cargar más productos (${list.length - paginated.length} restantes)
+    const sinFiltros = S.cat === 'todos' && !S.brand && !S.search;
+    if (_hayMasFirestore && sinFiltros) {
+      loadMoreEl.innerHTML = `<button id="btn-cargar-mas" onclick="cargarMasProductos()" style="padding:12px 32px;border-radius:10px;background:#111;color:#fff;font-size:14px;font-weight:700;border:none;cursor:pointer;display:block;margin:24px auto 0">
+        Cargar más productos
       </button>`;
     } else {
       loadMoreEl.innerHTML = '';
@@ -878,7 +903,7 @@ function renderGrid() {
 function render() { renderTabs(); renderBrands(); renderGrid(); }
 
 // ── ACCIONES
-function setCat(id) { S.cat=id; S.brand=''; S.page=0; render(); }
+function setCat(id) { S.cat=id; S.brand=''; render(); }
 
 // ── COMPARTIR PRODUCTO
 function compartirProducto(id) {
