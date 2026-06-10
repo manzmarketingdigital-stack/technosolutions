@@ -863,7 +863,7 @@ function renderGrid() {
   }
 
   const pgEl2 = document.getElementById('products-grid'); if(!pgEl2) return; pgEl2.innerHTML = list.map(p => {
-    const ci = catInfo(p.cat) || {icon:'📦',label:'Producto'};
+    const ci = catInfo(p.cat) || {icon:'📦',label:'Producto'};\
     const imgHTML = p.foto
       ? `<img class="prod-img loaded" src="${p.foto}" alt="${p.nombre}" loading="lazy">`
       : `<div class="prod-img-placeholder"><div class="icon">${ci.icon}</div><div class="txt">SIN FOTO AÚN</div></div>`;
