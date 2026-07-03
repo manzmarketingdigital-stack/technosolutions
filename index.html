@@ -552,6 +552,10 @@ const CATS = [
 // ── PRODUCTOS
 let PRODUCTOS = []; // se llena desde Firebase
 
+// FIX: 'S' debe existir ANTES de llamar renderTabs(), porque renderTabs()
+// usa S.cat. Si no, cae en la Zona Muerta Temporal (TDZ) y corta el script.
+let S = { cat:'todos', brand:'', search:'', cart:{} };
+
 // El menú de categorías es data fija (no depende de Firebase),
 // así que lo pintamos ya mismo, sin esperar a la consulta de productos.
 renderTabs();
@@ -636,7 +640,6 @@ async function cargarProductosTienda() {
   render();
 }
 
-let S = { cat:'todos', brand:'', search:'', cart:{} };
 const fmt = n => Number(n).toLocaleString('es-AR');
 const marcas = []; // FIX: se llena en cargarProductosTienda() tras recibir Firebase
 
