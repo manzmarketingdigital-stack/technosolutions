@@ -9,7 +9,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"></noscript>
-<style>#app-loader{position:fixed;inset:0;background:#f5f5f5;display:flex;align-items:center;justify-content:center;z-index:9999;transition:opacity .3s ease}#app-loader.hide{opacity:0;pointer-events:none}.loader-dot{width:10px;height:10px;border-radius:50%;background:#111;margin:0 4px;animation:ldot .8s ease-in-out infinite}.loader-dot:nth-child(2){animation-delay:.15s}.loader-dot:nth-child(3){animation-delay:.3s}@keyframes ldot{0%,80%,100%{transform:scale(0);opacity:.3}40%{transform:scale(1);opacity:1}}</style>
 <style>
 /* ─── RESET ─── */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -325,13 +324,17 @@ footer{background:#fff;border-top:1px solid #e8e8e8;padding:32px;margin-top:0}
 
 /* ─── TOAST ─── */
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#111;color:#fff;border-radius:12px;padding:12px 22px;font-size:14px;font-weight:600;display:none;z-index:999;box-shadow:0 8px 32px rgba(0,0,0,.2);white-space:nowrap;animation:fadeUp .2s ease}
+
+/* ─── SKELETON (placeholder mientras cargan productos) ─── */
+.skel-card{background:#fff;border-radius:16px;overflow:hidden;border:2px solid #f0f0f0;height:390px}
+.skel-img{height:220px;background:linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 37%,#f0f0f0 63%);background-size:400% 100%;animation:skel 1.4s ease infinite}
+.skel-lines{padding:20px;display:flex;flex-direction:column;gap:10px}
+.skel-line{height:12px;border-radius:6px;background:linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 37%,#f0f0f0 63%);background-size:400% 100%;animation:skel 1.4s ease infinite}
+.skel-line.w60{width:60%}.skel-line.w80{width:80%}.skel-line.w40{width:40%}
+@keyframes skel{0%{background-position:100% 50%}100%{background-position:0 50%}}
 </style>
-<!-- Firebase compat -->
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
-<div id="app-loader"><div class="loader-dot"></div><div class="loader-dot"></div><div class="loader-dot"></div></div>
 
 <!-- ─── HEADER ─── -->
 <header>
@@ -417,7 +420,11 @@ footer{background:#fff;border-top:1px solid #e8e8e8;padding:32px;margin-top:0}
   </div>
 
   <!-- GRID -->
-  <div class="products-grid" id="products-grid"></div>
+  <div class="products-grid" id="products-grid">
+    <div class="skel-card"><div class="skel-img"></div><div class="skel-lines"><div class="skel-line w40"></div><div class="skel-line w80"></div><div class="skel-line w60"></div></div></div>
+    <div class="skel-card"><div class="skel-img"></div><div class="skel-lines"><div class="skel-line w40"></div><div class="skel-line w80"></div><div class="skel-line w60"></div></div></div>
+    <div class="skel-card"><div class="skel-img"></div><div class="skel-lines"><div class="skel-line w40"></div><div class="skel-line w80"></div><div class="skel-line w60"></div></div></div>
+  </div>
   <div id="load-more-wrap"></div>
 
   <!-- CTA -->
@@ -509,6 +516,10 @@ footer{background:#fff;border-top:1px solid #e8e8e8;padding:32px;margin-top:0}
 </div>
 <div id="toast"></div>
 
+<!-- Firebase compat: se cargan acá, después de todo el HTML visible, para que el navegador
+     pinte header/menú/hero al instante sin esperar la descarga de estos scripts -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script>
 firebase.initializeApp({
   apiKey: "AIzaSyChrmXpthjPEQYZ3KWTq5FNlQdIztlIDJM",
@@ -540,6 +551,10 @@ const CATS = [
 
 // ── PRODUCTOS
 let PRODUCTOS = []; // se llena desde Firebase
+
+// El menú de categorías es data fija (no depende de Firebase),
+// así que lo pintamos ya mismo, sin esperar a la consulta de productos.
+renderTabs();
 const PRODUCTOS_EJEMPLO = [
   {id:'m1',cat:'modulos',   marca:'Samsung', modelo:'Galaxy A54',   nombre:'Módulo pantalla completo', precio:28000, desc:'Display OLED con marco. Incluye adhesivo.'},
   {id:'m2',cat:'modulos',   marca:'Samsung', modelo:'Galaxy A34',   nombre:'Módulo pantalla completo', precio:24000, desc:'Pantalla AMOLED original con touch integrado.'},
@@ -561,8 +576,23 @@ const PRODUCTOS_EJEMPLO = [
   {id:'h4',cat:'herramientas',marca:'General',modelo:'Profesional', nombre:'Cautín punta fina 60W',    precio:8500, desc:'Control de temperatura digital.'},
 ]; // fin ejemplo
 
+const TS_CACHE_KEY = 'ts_productos_cache_v1';
+
 async function cargarProductosTienda() {
   try { localStorage.removeItem('ts_admin_v2'); } catch(e) {}
+
+  // 1) Mostrar de entrada lo que haya en caché (si lo hay) para que el grid
+  //    aparezca al instante, mientras en paralelo se consulta Firebase.
+  try {
+    const cached = JSON.parse(localStorage.getItem(TS_CACHE_KEY) || 'null');
+    if (cached && Array.isArray(cached) && cached.length) {
+      PRODUCTOS = cached;
+      marcas.length = 0;
+      [...new Set(PRODUCTOS.map(p=>p.marca).filter(m=>m&&m!=='General'))].forEach(m=>marcas.push(m));
+      render();
+    }
+  } catch(e) {}
+
   try {
     const snap = await dbFirebase.collection('productos').get();
     if (!snap.empty) {
@@ -586,9 +616,13 @@ async function cargarProductosTienda() {
       PRODUCTOS = [];
     }
     const eb = document.getElementById('fb-error-banner'); if (eb) eb.remove();
+    try { localStorage.setItem(TS_CACHE_KEY, JSON.stringify(PRODUCTOS)); } catch(e) {}
   } catch(e) {
-    PRODUCTOS = [];
-    if (!document.getElementById('fb-error-banner')) {
+    // Si falla Firebase pero ya teníamos algo mostrado desde la caché, lo dejamos
+    // como está (mejor productos viejos que pantalla de error). Solo mostramos
+    // el error si no había nada previo en pantalla.
+    if (!PRODUCTOS.length) PRODUCTOS = [];
+    if (!document.getElementById('fb-error-banner') && !PRODUCTOS.length) {
       const b = document.createElement('div');
       b.id = 'fb-error-banner';
       b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#dc2626;color:#fff;text-align:center;padding:12px 16px;font-size:14px;font-weight:700';
@@ -600,9 +634,6 @@ async function cargarProductosTienda() {
   marcas.length = 0;
   [...new Set(PRODUCTOS.map(p=>p.marca).filter(m=>m&&m!=='General'))].forEach(m=>marcas.push(m));
   render();
-  // loader ya se quita en finally
-  const loaderOld = document.getElementById('app-loader');
-  if (loaderOld) { loaderOld.classList.add('hide'); setTimeout(()=>loaderOld.remove(), 350); }
 }
 
 let S = { cat:'todos', brand:'', search:'', cart:{} };
